@@ -154,6 +154,7 @@ def phaseIIpreferences(player, community, global_random):
         return impossible
 
     bids = []
+    free_tasks = []
     num_abilities = len(player.abilities)
 
     for idx, task in enumerate(community.tasks):
@@ -168,6 +169,10 @@ def phaseIIpreferences(player, community, global_random):
         if player_cost <= player.energy * 0.7:
             bids.append((idx, player_cost + player_suitability, player_cost))
 
+        if player_cost == 0:
+            free_tasks.append(idx)
+
     # Sort bids by energy and suitability, then cost
     bids.sort(key=lambda x: (x[1], x[2]))
-    return [b[0] for b in bids[:3]]
+    tasks = [b[0] for b in bids[:3]] + free_tasks
+    return tasks
