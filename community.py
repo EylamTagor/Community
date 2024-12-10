@@ -12,12 +12,15 @@ import io
 # group 2 needs this package, and if only imported in our file, the simulator will catch the exception and play default
 # therefore, we import it here to ensure a ModuleNotFound crash, so that the error won't go unnoticed
 import scipy as _ 
+import csv
+from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from matplotlib.figure import Figure
+#import matplotlib.pyplot as plt
+#from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+#from matplotlib.figure import Figure
 import numpy as np
+import os
 from teams.team_0.distributions_easy import ability_distribution as default_ability_distribution
 from teams.team_0.distributions_easy import task_difficulty_distribution as default_task_difficulty_distribution
 global_task_generation_id = 0
@@ -316,8 +319,7 @@ def create_logged_function(func, flag):
     return log_output(flag)(func)
 
 
-def run_simulation(num_abilities: int, num_players: int, player_distribution, num_turns: int, ability_distribution,
-                   task_difficulty_distribution):
+def run_simulation(num_abilities: int, num_players: int, player_distribution, num_turns: int, ability_distribution, task_difficulty_distribution, output_file: str):
     members = []
     j = 0
     for group, count in player_distribution.items():
@@ -334,13 +336,23 @@ def run_simulation(num_abilities: int, num_players: int, player_distribution, nu
             j += 1
 
     community = Community(num_abilities, num_players, player_distribution, members)
+    print(output_file)
+    with open(output_file, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['Turn', 'Completed Tasks', 'Tasks/Turn'])
 
-    for _ in tqdm(range(num_turns), file=sys.stdout):
+    for turn in tqdm(range(num_turns), file=sys.stdout):
         available_players = {p for p in community.members if not p.incapacitated}
         if len(available_players) == 0:
             print("No active players")
             break
         CommunityActions.simulate_turn(community, task_difficulty_distribution, available_players)
+    
+        if (turn + 1) % 100 == 0:
+            with open(output_file, 'a', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow([turn + 1, community.completed_tasks, community.completed_tasks/(turn + 1)])
+                print(f"Turn: {turn + 1}: {community.completed_tasks}. Average tasks completed: {community.completed_tasks/(turn + 1)}")
 
     return community.completed_tasks
 
@@ -596,6 +608,7 @@ if __name__ == "__main__":
     parser.add_argument('--abilities_distribution_difficulty', type=str, default='easy', choices=['easy', 'medium', 'hard'], help='Easy (e), medium (m) or hard difficulty')
     parser.add_argument('--log', action='store_true', help='Log the results to a txt in folder')
     parser.add_argument('--gui', action='store_true', help='Run the simulation with GUI')
+    parser.add_argument('--output_file', type=str, help='Path to the output CSV file')
     for i in range(1, 11):
         parser.add_argument(f'--g{i}', type=int, default=0, help=f'Number of players in group {i}')
 
@@ -672,8 +685,8 @@ if __name__ == "__main__":
         CommunityActions.generate_tasks(community, task_difficulty_distribution)
         create_gui(community, CommunityActions.simulate_turn, task_difficulty_distribution, num_turns)
     else:
-        total_tasks_completed = run_simulation(num_abilities, num_members, player_distribution, num_turns,
-                                               ability_distribution, task_difficulty_distribution)
+        total_tasks_completed = run_simulation(num_abilities, num_members, player_distribution, num_turns, ability_distribution, task_difficulty_distribution, args.output_file)
+        
         print(f"Total tasks completed: {total_tasks_completed}")
         print(f"Average number of tasks per turn: {round(total_tasks_completed / num_turns, 2)}")
     print(f"Average time taken for giving phase I preferences: {round(time_prefI/num_calls_prefI, 2)} seconds")
